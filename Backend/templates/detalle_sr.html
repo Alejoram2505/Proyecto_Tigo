@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalle SR</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        .tag-green { background:#4CAF50; color:white; padding:4px 8px; border-radius:4px; }
+        .tag-yellow { background:#FFC107; color:black; padding:4px 8px; border-radius:4px; }
+        .tag-red { background:#DC3545; color:white; padding:4px 8px; border-radius:4px; }
+    </style>
+</head>
+
+<body class="p-4">
+
+<h2>Detalle de SR</h2>
+<hr>
+
+<!-- INFORMACIÓN DE LA OT -->
+<div class="card p-3 mb-4">
+    <h4>OT {{ ot.ot }}</h4>
+
+    {% if ot.fecha_estimada %}
+        <p class="text-warning">⚠ Fecha estimada (no venía en el backlog)</p>
+    {% endif %}
+
+    <p><strong>Cliente:</strong> {{ ot.cliente }}</p>
+    <p><strong>Producto:</strong> {{ ot.producto }}</p>
+    <p><strong>Producto hijo:</strong> {{ ot.producto_hijo }}</p>
+    <p><strong>SOL:</strong> {{ ot.sol }}</p>
+    <p><strong>Enlace:</strong> {{ ot.enlace_id }}</p>
+    <p><strong>Comercial:</strong> {{ ot.comercial }}</p>
+    <p><strong>Estado:</strong> {{ ot.estado }}</p>
+    <p><strong>Fecha ingreso:</strong> {{ ot.fecha_ingreso|date:"d/m/Y" }}</p>
+
+    <p><strong>Días de cola:</strong>
+        {% if ot.color_cola == "green" %}
+            <span class="tag-green">{{ ot.dias_cola }}</span>
+        {% elif ot.color_cola == "yellow" %}
+            <span class="tag-yellow">{{ ot.dias_cola }}</span>
+        {% else %}
+            <span class="tag-red">{{ ot.dias_cola }}</span>
+        {% endif %}
+    </p>
+</div>
+
+<!-- OTRAS OT RELACIONADAS POR SOL -->
+{% if ot_relacionadas %}
+<div class="alert alert-info">
+    <strong>Esta OT está relacionada con otras por SOL:</strong>
+
+    <ul id="lista-relacionadas">
+        {% for o in ot_relacionadas %}
+            <li class="{% if forloop.counter > 10 %}relacionada-extra d-none{% endif %}">
+                <a href="{% url 'detalle_sr' o.id %}">OT {{ o.ot }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    {% if ot_relacionadas|length > 10 %}
+    <button id="toggleRelacionadas" class="btn btn-secondary btn-sm mt-2">
+        Ver más relacionadas
+    </button>
+    {% endif %}
+</div>
+{% endif %}
+
+<hr>
+
+<!-- COMENTARIOS -->
+<h4>Comentarios</h4>
+
+<!-- Formulario -->
+<form method="POST" class="mb-3">
+    {% csrf_token %}
+    <textarea name="comentario" class="form-control" rows="3" placeholder="Escribe un comentario..."></textarea>
+    <button class="btn btn-primary mt-2">Agregar comentario</button>
+</form>
+
+<!-- Lista de comentarios -->
+<div id="comentarios-container">
+    {% for comentario in comentarios %}
+        <div class="card mb-2 comentario-item {% if forloop.counter > 5 %}extra-comentario d-none{% endif %}">
+            <div class="card-body d-flex justify-content-between align-items-start">
+                <div>
+                    <p>{{ comentario.texto }}</p>
+                    <small class="text-muted">
+                        Por {{ comentario.usuario }} — {{ comentario.fecha|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+
+                {% if comentario.usuario == request.user %}
+                <form method="POST" action="{% url 'borrar_comentario' comentario.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger ms-3">
+                        Borrar
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+{% if comentarios.count > 5 %}
+<button id="toggleComentarios" class="btn btn-secondary mt-2">Ver más comentarios</button>
+{% endif %}
+
+<script>
+let expanded = false;
+
+document.getElementById("toggleComentarios")?.addEventListener("click", function() {
+    const extras = document.querySelectorAll(".extra-comentario");
+
+    extras.forEach(e => e.classList.toggle("d-none"));
+
+    expanded = !expanded;
+    this.textContent = expanded ? "Ver menos comentarios" : "Ver más comentarios";
+});
+</script>
+
+<script>
+let rel_expanded = false;
+
+document.getElementById("toggleRelacionadas")?.addEventListener("click", function() {
+    const extras = document.querySelectorAll(".relacionada-extra");
+
+    extras.forEach(e => e.classList.toggle("d-none"));
+
+    rel_expanded = !rel_expanded;
+
+    this.textContent = rel_expanded
+        ? "Ver menos relacionadas"
+        : "Ver más relacionadas";
+});
+</script>
+
+<hr>
+
+<a href="/ver-sr/" 
+   class="btn btn-secondary shadow-lg"
+   style="
+       position: fixed;
+       bottom: 20px;
+       right: 20px;
+       z-index: 1000;
+       border-radius: 50px;
+       padding: 10px 18px;
+   ">
+    Regresar
+</a>
+
+</body>
+</html>

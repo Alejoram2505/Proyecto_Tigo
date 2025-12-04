@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Subir Backlog</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="p-4">
+
+<h2>Subir Backlog</h2>
+<hr>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if ok %}
+<div class="alert alert-success">{{ ok }}</div>
+{% endif %}
+
+<form method="POST" enctype="multipart/form-data" onsubmit="mostrarLoader()">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Seleccionar archivo Excel:</label>
+        <input type="file" name="archivo" class="form-control" required>
+    </div>
+
+    <button class="btn btn-primary">Subir</button>
+</form>
+
+<a href="/" class="btn btn-secondary mt-3">Regresar</a>
+
+<script>
+function mostrarLoader() {
+    document.getElementById("loader").style.display = "block";
+}
+</script>
+
+<div id="loader" style="display:none;">
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+    <p class="text-center mt-2">Procesando archivo, por favor espere...</p>
+</div>
+
+{% if duplicadas %}
+<div class="alert alert-warning mt-3">
+    <h5>OT duplicadas detectadas:</h5>
+    <ul>
+        {% for d in duplicadas %}
+            <li>{{ d }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+</body>
+</html>

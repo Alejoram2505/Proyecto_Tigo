@@ -14,7 +14,7 @@
 
             <div class="d-flex text-white">
                 <span class="me-3">{{ user.nombre }} {{ user.apellido }} ({{ user.rol }})</span>
-                <a href="/accounts/Login/" class="btn btn-sm btn-light">Cerrar sesión</a>
+                <a href="{% url 'logout' %}" class="btn btn-sm btn-light">Cerrar sesión</a>
             </div>
         </div>
     </nav>
@@ -25,7 +25,7 @@
 
         <div class="row">
 
-            <!-- Subir Backlog -->
+            <!-- Subir Backlog (Admin + Ing) -->
             {% if user.rol == 'admin' or user.rol == 'ing' %}
             <div class="col-md-4 mb-3">
                 <a href="/subir-backlog/" class="btn btn-primary w-100 p-3">Subir Backlog</a>
@@ -37,17 +37,10 @@
                 <a href="/ver-sr/" class="btn btn-secondary w-100 p-3">Ver SR</a>
             </div>
 
-            <!-- Gráficas -->
+            <!-- Gráficas (Admin + Ing) -->
             {% if user.rol != 'cliente' %}
             <div class="col-md-4 mb-3">
                 <a href="/graficas/" class="btn btn-info w-100 p-3">Gráficas de rendimiento</a>
-            </div>
-            {% endif %}
-
-            <!-- Editar SR (Admin + Ing) -->
-            {% if user.rol == 'admin' or user.rol == 'ing' %}
-            <div class="col-md-4 mb-3">
-                <a href="/editar-sr/" class="btn btn-warning w-100 p-3">Editar SR</a>
             </div>
             {% endif %}
 

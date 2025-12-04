@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Agregar Usuario</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        .floating-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 22px;
+            border-radius: 50px;
+            z-index: 999;
+        }
+    </style>
+</head>
+
+<body class="p-4">
+
+<h2>Crear nuevo usuario</h2>
+<hr>
+
+{% if mensaje_ok %}
+<div class="alert alert-success">{{ mensaje_ok }}</div>
+{% endif %}
+
+{% if mensaje_error %}
+<div class="alert alert-danger">{{ mensaje_error }}</div>
+{% endif %}
+
+<form method="POST">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" name="nombre" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Apellido</label>
+        <input type="text" name="apellido" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Correo</label>
+        <input type="email" name="correo" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Rol</label>
+        <select name="rol" class="form-control" required>
+            <option value="admin">Administrador</option>
+            <option value="ing">Ingeniero</option>
+            <option value="cliente">Cliente</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-success w-100">Crear Usuario</button>
+</form>
+
+<button class="btn btn-secondary floating-btn" onclick="window.history.back();">Regresar</button>
+
+</body>
+</html>
