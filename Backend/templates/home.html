@@ -30,6 +30,7 @@
     <div class="row g-4">
 
         <!-- SUBIR BACKLOG -->
+        {% if request.user.rol == "admin" %}
         <div class="col-md-4">
             <a href="{% url 'subir_backlog' %}" class="text-decoration-none">
                 <div class="card-section text-center">
@@ -39,6 +40,7 @@
                 </div>
             </a>
         </div>
+        {% endif %}
 
         <!-- VER SR -->
         <div class="col-md-4">
@@ -52,6 +54,7 @@
         </div>
 
         <!-- GRAFICAS -->
+        {% if request.user.rol == "admin" %}
         <div class="col-md-4">
             <a href="{% url 'graficas' %}" class="text-decoration-none">
                 <div class="card-section text-center">
@@ -61,6 +64,7 @@
                 </div>
             </a>
         </div>
+        {% endif %}
 
         <!-- AGREGAR USUARIO -->
         {% if request.user.rol == "admin" %}
@@ -76,6 +80,7 @@
         {% endif %}
 
         <!-- SUBIR SEGMENTO -->
+        {% if request.user.rol == "admin" %}
         <div class="col-md-4">
             <a href="{% url 'subir_segmento' %}" class="text-decoration-none">
                 <div class="card-section text-center">
@@ -85,8 +90,10 @@
                 </div>
             </a>
         </div>
+        {% endif %}
 
         <!-- VER CLIENTES -->
+        {% if request.user.rol == "admin" %}
         <div class="col-md-4">
             <a href="{% url 'ver_clientes' %}" class="text-decoration-none">
                 <div class="card-section text-center">
@@ -96,6 +103,7 @@
                 </div>
             </a>
         </div>
+        {% endif %}
 
     </div>
 </div>
