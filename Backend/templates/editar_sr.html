@@ -3,178 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <title>Editar SR</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <style>
-        .tag-green { background:#4CAF50; color:white; padding:4px 8px; border-radius:4px; }
-        .tag-yellow { background:#FFC107; color:black; padding:4px 8px; border-radius:4px; }
-        .tag-red { background:#DC3545; color:white; padding:4px 8px; border-radius:4px; }
-
-        .floating-btn {
-            position: fixed;
-            right: 20px;
-            padding: 12px 22px;
-            border-radius: 50px;
-            z-index: 999;
-        }
-        #btn-regresar { bottom: 80px; }
-        #btn-guardar { bottom: 20px; }
-    </style>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
 </head>
 
-<body class="p-4">
+<body>
 
-<h2>Editar SR – {{ ot.ot }}</h2>
-<hr>
+<!-- TOPBAR -->
+<div class="topbar">
+    <h5>Sistema de OT</h5>
+    <div class="user">
+        {{ request.user }} |
+        <a href="{% url 'logout' %}" class="text-white text-decoration-none ms-2">
+            Cerrar sesión
+        </a>
+    </div>
+</div>
 
-<form method="POST">
-    {% csrf_token %}
+<div class="container my-4">
 
-    <!-- INFO GENERAL (solo lectura) -->
-    <div class="card mb-4">
-        <div class="card-header bg-secondary text-white">Información General</div>
-        <div class="card-body">
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Editar SR</h2>
+            <p class="text-muted mb-0">Actualiza la información de la orden de trabajo</p>
+        </div>
 
-            <p><strong>Segmento:</strong> {{ ot.segmento }}</p>
-            <p><strong>Cliente:</strong> {{ ot.cliente }}</p>
-            <p><strong>Producto:</strong> {{ ot.producto }}</p>
-            <p><strong>Producto hijo:</strong> {{ ot.producto_hijo }}</p>
+        <a href="{% url 'detalle_sr' ot.id %}" class="btn btn-outline-secondary">
+            ← Regresar
+        </a>
+    </div>
 
-            <!-- OT relacionadas por SOL -->
-            {% if relacionadas %}
-                <p><strong>OT Relacionadas:</strong></p>
-                <ul>
-                    {% for r in relacionadas|slice:":10" %}
-                        <li>
-                            <a href="{% url 'detalle_sr' r.id %}">
-                                {{ r.ot }} (SOL {{ r.sol }})
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
+    <!-- =========================
+         INFORMACIÓN GENERAL
+    ========================== -->
+    <div class="card-section">
+        <h5 class="mb-3">Información general</h5>
 
-                {% if relacionadas|length > 10 %}
-                    <button 
-                        class="btn btn-sm btn-outline-primary" 
-                        type="button" 
-                        onclick="document.getElementById('todas-rel').style.display='block'; this.remove();">
-                        Ver más
-                    </button>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <strong>OT</strong><br>
+                {{ ot.ot }}
+            </div>
 
-                    <ul id="todas-rel" style="display:none;">
-                        {% for r in relacionadas %}
-                            <li>
-                                <a href="{% url 'detalle_sr' r.id %}">{{ r.ot }}</a>
-                            </li>
+            <div class="col-md-4 mb-3">
+                <strong>Cliente</strong><br>
+                {{ ot.cliente }}
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <strong>Producto</strong><br>
+                {{ ot.producto }}
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <strong>Producto hijo</strong><br>
+                {{ ot.producto_hijo }}
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <strong>SOL</strong><br>
+                {{ ot.sol }}
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================
+         EDICIÓN
+    ========================== -->
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="card-section">
+            <h5 class="mb-3">Edición</h5>
+
+            <div class="row">
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Estado</label>
+                    <select name="estado" class="form-select">
+                        {% for key, label in estados %}
+                            <option value="{{ key }}" {% if ot.estado == key %}selected{% endif %}>
+                                {{ label }}
+                            </option>
                         {% endfor %}
-                    </ul>
-                {% endif %}
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- CAMPOS EDITABLES -->
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">Edición</div>
-        <div class="card-body">
-
-            <!-- Estado -->
-            <div class="mb-3">
-                <label class="form-label"><strong>Estado</strong></label>
-                <select name="estado" class="form-select">
-                    <option {% if ot.estado == 'abierto' %}selected{% endif %}>abierto</option>
-                    <option {% if ot.estado == 'en proceso' %}selected{% endif %}>en proceso</option>
-                    <option {% if ot.estado == 'pospuesto' %}selected{% endif %}>pospuesto</option>
-                    <option {% if ot.estado == 'cancelado' %}selected{% endif %}>cancelado</option>
-                    <option {% if ot.estado == 'cerrado' %}selected{% endif %}>cerrado</option>
-                </select>
-            </div>
-
-            <!-- Ingeniero encargado -->
-            <div class="mb-3">
-                <label class="form-label"><strong>Ingeniero encargado</strong></label>
-                <select name="ing_encargado" class="form-select">
-                    <option value="">Sin asignar</option>
-                    {% for u in ingenieros %}
-                        <option value="{{ u.id }}" {% if ot.ing_encargado and ot.ing_encargado.id == u.id %}selected{% endif %}>
-                            {{ u.nombre }} {{ u.apellido }} ({{ u.rol }})
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Fecha ingreso (solo admin) -->
-            {% if user.rol == "admin" %}
-            <div class="mb-3">
-                <label class="form-label"><strong>Fecha ingreso</strong></label>
-                <input type="date" name="fecha_ingreso"
-                       value="{{ ot.fecha_ingreso|date:'Y-m-d' }}" class="form-control">
-            </div>
-            {% endif %}
-
-            <!-- Fecha cierre (solo admin) -->
-            {% if user.rol == "admin" %}
-            <div class="mb-3">
-                <label class="form-label"><strong>Fecha cierre</strong></label>
-                <input type="date" name="fecha_cierre"
-                       value="{{ ot.fecha_cierre|date:'Y-m-d' }}" class="form-control">
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- COMENTARIOS -->
-    <div class="card mb-5">
-        <div class="card-header bg-dark text-white">Comentarios</div>
-        <div class="card-body">
-
-            <!-- Nuevo comentario -->
-            <textarea class="form-control mb-3" name="nuevo_comentario" rows="3" placeholder="Agregar comentario..."></textarea>
-
-            <!-- Lista de comentarios -->
-            {% for c in comentarios|slice:":5" %}
-                <div class="border rounded p-2 mb-2">
-                    <strong>{{ c.usuario.username }}</strong> 
-                    <span class="text-muted">{{ c.fecha|date:"d/m/Y H:i" }}</span>
-                    <p>{{ c.texto }}</p>
-
-                    {% if c.usuario.id == user.id %}
-                    <a href="{% url 'borrar_comentario' c.id %}" class="btn btn-sm btn-danger">Eliminar</a>
-                    {% endif %}
+                    </select>
                 </div>
-            {% endfor %}
 
-            {% if comentarios|length > 5 %}
-                <button type="button" class="btn btn-outline-primary btn-sm"
-                        onclick="document.getElementById('todos-com').style.display='block'; this.remove();">
-                    Ver todos los comentarios
-                </button>
-
-                <div id="todos-com" style="display:none;">
-                    {% for c in comentarios %}
-                        <div class="border rounded p-2 mb-2">
-                            <strong>{{ c.usuario.username }}</strong> 
-                            <span class="text-muted">{{ c.fecha|date:"d/m/Y H:i" }}</span>
-                            <p>{{ c.texto }}</p>
-
-                            {% if c.usuario.id == user.id %}
-                            <a href="{% url 'borrar_comentario' c.id %}" class="btn btn-sm btn-danger">Eliminar</a>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Segmento</label>
+                    <select name="segmento" class="form-select">
+                        {% for s in segmentos %}
+                            <option value="{{ s }}" {% if ot.segmento == s %}selected{% endif %}>
+                                {{ s }}
+                            </option>
+                        {% endfor %}
+                    </select>
                 </div>
-            {% endif %}
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Familia</label>
+                    <select name="familia" class="form-select">
+                        {% for f in familias %}
+                            <option value="{{ f }}" {% if ot.familia == f %}selected{% endif %}>
+                                {{ f }}
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Enlace</label>
+                        <input type="text"
+                            name="enlace_id"
+                            class="form-control"
+                            value="{{ ot.enlace_id }}">
+                    </div>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Ingeniero encargado</label>
+                    <select name="ing_encargado" class="form-select">
+                        <option value="">— Sin asignar —</option>
+                        {% for ing in ingenieros %}
+                            <option value="{{ ing.id }}"
+                                {% if ot.ing_encargado_id == ing.id %}selected{% endif %}>
+                                {{ ing }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Fecha ingreso</label>
+                    <input type="date" name="fecha_ingreso"
+                           value="{{ ot.fecha_ingreso|date:'Y-m-d' }}"
+                           class="form-control">
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Fecha cierre</label>
+                    <input type="date" name="fecha_cierre"
+                           value="{{ ot.fecha_cierre|date:'Y-m-d' }}"
+                           class="form-control">
+                </div>
+
+            </div>
         </div>
-    </div>
 
-    <!-- BOTONES FLOTANTES -->
-    <button id="btn-regresar" onclick="window.history.back();" 
-            class="btn btn-secondary floating-btn">Regresar</button>
+        <!-- =========================
+             BOTONES
+        ========================== -->
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a href="{% url 'detalle_sr' ot.id %}" class="btn btn-secondary">
+                Cancelar
+            </a>
 
-    <button id="btn-guardar" type="submit" 
-            class="btn btn-success floating-btn">Guardar cambios</button>
+            <button type="submit" class="btn btn-success">
+                Guardar cambios
+            </button>
+        </div>
 
-</form>
+    </form>
+
+</div>
 
 </body>
 </html>

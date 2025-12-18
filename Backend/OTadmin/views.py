@@ -1,7 +1,27 @@
 import pandas as pd
 from django.shortcuts import render
 from .models import OT
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from .familias import mapa_familias
+from .models import SegmentoCliente, normalizar_texto
+
+import json
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse, HttpResponseForbidden
+from django.db.models import Sum, Count
+
+from openpyxl import Workbook
+
+from .kpi_service import (
+    rango_default_30_dias,
+    kpi_familias,
+    kpi_segmentos,
+    kpi_histograma_familias,
+    kpi_cierres_temporales,
+    kpi_globales,
+)
+
+
 
 def parsear_fecha(valor):
     """
@@ -43,8 +63,8 @@ def parsear_fecha(valor):
     except:
         return None
 
-
 def subir_backlog(request):
+
     if request.method == "POST":
         archivo = request.FILES.get("archivo")
 
@@ -52,84 +72,99 @@ def subir_backlog(request):
             return render(request, "subir_backlog.html", {"error": "No se seleccionó archivo."})
 
         try:
-            # Leer sin headers
+            # Leer primera pasada sin headers
             df_raw = pd.read_excel(archivo, header=None)
 
-            # Detectar fila donde está el encabezado real
+            # Detectar fila de encabezado
             header_row = df_raw[df_raw.apply(
                 lambda row: row.astype(str).str.contains('SR_NO_INSTALACION').any(),
                 axis=1
             )].index[0]
 
-            # Leer Excel usando esa fila como encabezado
             df = pd.read_excel(archivo, header=header_row)
-
-            # Normalizar columnas
             df.columns = df.columns.str.strip().str.upper()
 
-            # Validar columna GRUPO
+            # Filtrar solo VAS IMPLEMENTATION
             if "GRUPO" not in df.columns:
-                return render(request, "subir_backlog.html", {
-                    "error": f"Error: no se encontró columna GRUPO. Detectadas: {list(df.columns)}"
-                })
+                return render(request, "subir_backlog.html", {"error": "El backlog no contiene la columna GRUPO."})
 
-            # Filtrar solo backlog del grupo correcto
             df = df[df["GRUPO"] == "VAS IMPLEMENTATION"]
 
             agregadas = 0
-            ignoradas = 0
             duplicadas = []
 
-            for index, row in df.iterrows():
+            for idx, row in df.iterrows():
+
                 ot_num = row.get("SR_NO_INSTALACION")
 
                 if pd.isna(ot_num):
                     continue
 
+                # Evitar duplicados
                 if OT.objects.filter(ot=ot_num).exists():
-                    ignoradas += 1
-                    duplicadas.append(f"Fila {index + 1} → OT {ot_num}")
+                    duplicadas.append(str(ot_num))
                     continue
 
+                # =====================
+                # 1) Cliente + normalización
+                # =====================
+                cliente = row.get("CLIENTE_NOMBRE", "")
+                cliente_norm = normalizar_texto(cliente)
 
-                # Usar el parser personalizado
+                # =====================
+                # 2) Buscar segmento en tabla SegmentoCliente
+                # =====================
+                seg_obj = SegmentoCliente.objects.filter(cliente_normalizado=cliente_norm).first()
+                segmento = seg_obj.segmento if seg_obj else ""
+
+                # =====================
+                # 3) Buscar familia (normalizado)
+                # =====================
+                producto = row.get("PRODUCTO", "")
+                producto_norm = normalizar_texto(producto)
+                familia = ""
+
+                for clave, fam in mapa_familias.items():
+                    if normalizar_texto(clave) == producto_norm:
+                        familia = fam
+                        break
+
+                # =====================
+                # 4) Parse fecha ingreso
+                # =====================
                 fecha = parsear_fecha(row.get("FECHA_LIBERACION"))
-                fecha_estimada = False
-
-                # Si no tiene fecha, asignar fecha actual automáticamente
                 if fecha is None:
                     fecha = datetime.today()
-                    fecha_estimada = True
 
-
+                # =====================
+                # 5) Crear OT
+                # =====================
                 OT.objects.create(
-                    segmento=row.get("SEGMENTO_CLIENTE", ""),
-                    cliente=row.get("CLIENTE_NOMBRE", ""),
-                    producto=row.get("PRODUCTO", ""),
-                    ot=row.get("SR_NO_INSTALACION", ""),
-                    sol=row.get("ID_SOLUCION", ""),
+                    ot=ot_num,
+                    cliente=cliente,
+                    cliente_normalizado=cliente_norm,
+                    segmento=segmento,
+                    producto=producto,
                     producto_hijo=row.get("SUB_PRODUCTO", ""),
-                    fecha_ingreso=fecha,
-                    fecha_estimada=fecha_estimada,
+                    familia=familia,
+                    sol=row.get("ID_SOLUCION", ""),
                     enlace_id=row.get("NUMERO_DE_ENLACE"),
                     comercial=row.get("SR_USUARIO_CREADOR", ""),
+                    fecha_ingreso=fecha,
+                    fecha_estimada=(parsear_fecha(row.get("FECHA_LIBERACION")) is None)
                 )
 
                 agregadas += 1
 
             return render(request, "subir_backlog.html", {
-                "ok": f"OT agregadas: {agregadas}, OT duplicadas ignoradas: {ignoradas}",
+                "ok": f"OT agregadas: {agregadas}",
                 "duplicadas": duplicadas
             })
 
         except Exception as e:
-            return render(request, "subir_backlog.html", {
-                "error": f"Error al procesar archivo: {str(e)}"
-            })
+            return render(request, "subir_backlog.html", {"error": str(e)})
 
     return render(request, "subir_backlog.html")
-
-
 
 
 ## PANTALLA VER SR ##
@@ -254,62 +289,68 @@ def detalle_sr(request, ot_id):
 
 
 ## EDITAR SR ##
+from datetime import date
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
+from django.utils.timezone import now
+
 from accounts.models import CustomUser
 from .models import OT, Comentario
-from django.utils.timezone import now
 
 
 @login_required
 def editar_sr(request, ot_id):
     ot = get_object_or_404(OT, id=ot_id)
 
-    # Bloquear a clientes
     if request.user.rol == "cliente":
         return HttpResponseForbidden("No tienes permisos para editar esta SR.")
 
-    # Lista de ingenieros (admin + ing)
+    estados = OT.ESTADOS
     ingenieros = CustomUser.objects.filter(rol__in=["admin", "ing"])
-
-    # OT relacionadas por SOL
-    relacionadas = []
-    if ot.sol:
-        relacionadas = OT.objects.filter(sol=ot.sol).exclude(id=ot.id)
-
-    # Comentarios ordenados por fecha
     comentarios = ot.comentarios.order_by("-fecha")
 
-    # ---------------------------------------- #
-    #              POST (GUARDAR)              #
-    # ---------------------------------------- #
+    # Listas fijas (ajusta si luego vienen de BD)
+    segmentos = ["MNC", "GOVERNMENT", "ENTERPRISE", "LARGE", "SMALL", "WHOLESALE"]
+    familias = ["CLOUD", "CIBER", "FIJO", "SDWAN", "UCASS", "VAS"]
+
     if request.method == "POST":
 
-        # Estado de la OT
+        # Estado
         ot.estado = request.POST.get("estado")
 
-        # Ingeniero encargado
-        ing_id = request.POST.get("ing_encargado")
-        if ing_id:
-            ot.ing_encargado = CustomUser.objects.get(id=ing_id)
-        else:
-            ot.ing_encargado = None
+        # Reglas por estado
+        if ot.estado == "cerrado":
+            ot.fecha_cierre = date.today()
+        elif ot.estado in ["cancelado", "pospuesto"]:
+            ot.fecha_cierre = None
 
-        # Solo admin puede cambiar fechas
+        # Segmento y familia
+        ot.segmento = request.POST.get("segmento")
+        ot.familia = request.POST.get("familia")
+
+        # Enlace
+        ot.enlace_id = request.POST.get("enlace_id")
+
+        # Ingeniero
+        ing_id = request.POST.get("ing_encargado")
+        ot.ing_encargado = (
+            CustomUser.objects.get(id=ing_id) if ing_id else None
+        )
+
+        # Solo admin puede tocar fechas
         if request.user.rol == "admin":
             fecha_ing = request.POST.get("fecha_ingreso")
             fecha_cierre = request.POST.get("fecha_cierre")
 
             if fecha_ing:
                 ot.fecha_ingreso = fecha_ing
-
-            if fecha_cierre:
+            if fecha_cierre and ot.estado == "cerrado":
                 ot.fecha_cierre = fecha_cierre
 
         ot.save()
 
-        # Guardar nuevo comentario
+        # Comentario
         comentario_texto = request.POST.get("nuevo_comentario")
         if comentario_texto:
             Comentario.objects.create(
@@ -321,17 +362,15 @@ def editar_sr(request, ot_id):
 
         return redirect("detalle_sr", ot_id=ot.id)
 
-    # ---------------------------------------- #
-    #              GET (MOSTRAR)               #
-    # ---------------------------------------- #
     return render(request, "editar_sr.html", {
         "ot": ot,
+        "estados": estados,
         "ingenieros": ingenieros,
         "comentarios": comentarios,
-        "relacionadas": relacionadas,
+        "segmentos": segmentos,
+        "familias": familias,
         "es_admin": request.user.rol == "admin",
     })
-
 
 
 ## AGREGAR USUARIO ##
@@ -391,3 +430,472 @@ def agregar_usuario(request):
         "mensaje_ok": mensaje_ok,
         "mensaje_error": mensaje_error,
     })
+
+@login_required
+def subir_segmento(request):
+    from .models import SegmentoCliente, normalizar_texto
+
+    if request.user.rol not in ["admin", "ing"]:
+        return HttpResponseForbidden("No tienes permisos para esto.")
+
+    if request.method == "POST":
+        archivo = request.FILES.get("archivo")
+        df = pd.read_excel(archivo)
+        df.columns = df.columns.str.upper()
+
+        # Tu Excel usa NOMBRE_CLIENTE y SEGMENTO
+        for _, row in df.iterrows():
+            cliente = row.get("NOMBRE_CLIENTE")
+            segmento = row.get("SEGMENTO")
+
+            if not cliente or not segmento:
+                continue
+
+            norm = normalizar_texto(cliente)
+
+            SegmentoCliente.objects.update_or_create(
+                cliente_normalizado=norm,
+                defaults={
+                    "cliente": cliente,
+                    "segmento": segmento
+                }
+            )
+
+        # Ahora sincronizamos TODAS las OT
+        for ot in OT.objects.all():
+            norm_ot = normalizar_texto(ot.cliente)
+            seg = SegmentoCliente.objects.filter(cliente_normalizado=norm_ot).first()
+            if seg:
+                ot.segmento = seg.segmento
+                ot.save()
+
+        return render(request, "subir_segmento.html", {
+            "ok": "Segmentos cargados y OTs sincronizadas correctamente."
+        })
+
+    return render(request, "subir_segmento.html")
+
+@login_required
+def ver_clientes(request):
+    from .models import SegmentoCliente
+    from django.core.paginator import Paginator
+
+    if request.user.rol not in ["admin", "ing"]:
+        return HttpResponseForbidden("No tienes permiso para ver esta página.")
+
+    q = request.GET.get("q", "")
+
+    clientes = SegmentoCliente.objects.all().order_by("cliente")
+
+    # Buscador
+    if q:
+        clientes = clientes.filter(cliente__icontains=q)
+
+    # PAGINACIÓN — 300 por página (igual que SR)
+    paginator = Paginator(clientes, 300)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, "ver_clientes.html", {
+        "clientes": page_obj,
+        "q": q
+    })
+
+## VISTA KPI ##
+
+@login_required
+def graficas_view(request):
+    # Solo Admin e Ing
+    if request.user.rol not in ["admin", "ing"]:
+        return HttpResponseForbidden("No tienes permisos para ver esta página.")
+
+    fi_str = request.GET.get("fecha_inicio")
+    ff_str = request.GET.get("fecha_fin")
+
+    if fi_str and ff_str:
+        try:
+            fecha_inicio = datetime.strptime(fi_str, "%Y-%m-%d").date()
+            fecha_fin = datetime.strptime(ff_str, "%Y-%m-%d").date()
+        except ValueError:
+            fecha_inicio, fecha_fin = rango_default_30_dias()
+            fi_str = fecha_inicio.strftime("%Y-%m-%d")
+            ff_str = fecha_fin.strftime("%Y-%m-%d")
+    else:
+        fecha_inicio, fecha_fin = rango_default_30_dias()
+        fi_str = fecha_inicio.strftime("%Y-%m-%d")
+        ff_str = fecha_fin.strftime("%Y-%m-%d")
+
+    # Obtener datos de KPIs
+    data_familias = kpi_familias(fecha_inicio, fecha_fin)
+    data_segmentos = kpi_segmentos(fecha_inicio, fecha_fin)
+    data_hist_familias = kpi_histograma_familias(fecha_inicio, fecha_fin)
+    data_cierres = kpi_cierres_temporales(fecha_inicio, fecha_fin)
+    data_globales = kpi_globales(fecha_inicio, fecha_fin)
+    data_seg_comercial = kpi_segmentos_comercial_detallado(fecha_inicio, fecha_fin)
+
+    context = {
+        "fecha_inicio": fi_str,
+        "fecha_fin": ff_str,
+        "familias_json": json.dumps(data_familias),
+        "segmentos_json": json.dumps(data_segmentos),
+        "hist_familias_json": json.dumps(data_hist_familias),
+        "cierres_json": json.dumps(data_cierres),
+        "seg_comercial_json": json.dumps(data_seg_comercial),
+        "globales": data_globales,
+    }
+
+    return render(request, "graficas.html", context)
+
+
+@login_required
+def exportar_kpis_excel(request):
+    if request.user.rol not in ["admin", "ing"]:
+        return HttpResponseForbidden("No tienes permisos para esto.")
+
+    fi_str = request.GET.get("fecha_inicio")
+    ff_str = request.GET.get("fecha_fin")
+
+    if fi_str and ff_str:
+        try:
+            fecha_inicio = datetime.strptime(fi_str, "%Y-%m-%d").date()
+            fecha_fin = datetime.strptime(ff_str, "%Y-%m-%d").date()
+        except ValueError:
+            fecha_inicio, fecha_fin = rango_default_30_dias()
+    else:
+        fecha_inicio, fecha_fin = rango_default_30_dias()
+
+    # Reusar servicios KPI
+    data_familias = kpi_familias(fecha_inicio, fecha_fin)
+    data_segmentos = kpi_segmentos(fecha_inicio, fecha_fin)
+    data_hist_familias = kpi_histograma_familias(fecha_inicio, fecha_fin)
+    data_cierres = kpi_cierres_temporales(fecha_inicio, fecha_fin)
+    data_globales = kpi_globales(fecha_inicio, fecha_fin)
+
+    wb = Workbook()
+    wb.remove(wb.active)  # borrar hoja por defecto
+
+    # 1) KPIs_Familias
+    ws1 = wb.create_sheet("KPIs_Familias")
+    ws1.append(["Familia", "OTs cerradas", "MTTI promedio", "% del total"])
+    for row in data_familias:
+        ws1.append([
+            row["familia"],
+            row["total"],
+            row["mtti_promedio"],
+            row["porcentaje"],
+        ])
+
+    # 2) KPIs_Segmentos
+    ws2 = wb.create_sheet("KPIs_Segmentos")
+    ws2.append(["Segmento", "OTs cerradas", "MTTI promedio", "% del total"])
+    for row in data_segmentos:
+        ws2.append([
+            row["segmento"],
+            row["total"],
+            row["mtti_promedio"],
+            row["porcentaje"],
+        ])
+
+    # 3) Distribucion_Familias
+    ws3 = wb.create_sheet("Distribucion_Familias")
+    ws3.append(["Familia", "0-8 días", "9-16 días", "17-20 días", ">20 días"])
+    for row in data_hist_familias:
+        ws3.append([
+            row["familia"],
+            row["rango_0_8"],
+            row["rango_9_16"],
+            row["rango_17_20"],
+            row["rango_mas_20"],
+        ])
+
+    # 4) Cierres_Temporales
+    ws4 = wb.create_sheet("Cierres_Temporales")
+    ws4.append(["Periodo (YYYY-MM)", "OTs cerradas", "MTTI promedio"])
+    for row in data_cierres:
+        ws4.append([
+            row["periodo"],
+            row["total"],
+            row["mtti_promedio"],
+        ])
+
+    # 5) Globales
+    ws5 = wb.create_sheet("Globales")
+    ws5.append(["Métrica", "Valor"])
+    ws5.append(["Total OTs cerradas", data_globales["total_ot_cerradas"]])
+    ws5.append(["MTTI promedio", data_globales["mtti_promedio"]])
+    ws5.append(["Fecha inicio", fecha_inicio.strftime("%Y-%m-%d")])
+    ws5.append(["Fecha fin", fecha_fin.strftime("%Y-%m-%d")])
+
+    # 6) Datos_crudos (opcional, para validar)
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin)
+    ws6 = wb.create_sheet("Datos_crudos")
+    ws6.append([
+        "OT", "Cliente", "Segmento", "Familia",
+        "Fecha ingreso", "Fecha cierre", "MTTI",
+    ])
+    for ot in qs:
+        ws6.append([
+            ot.ot,
+            ot.cliente,
+            ot.segmento,
+            ot.familia,
+            ot.fecha_ingreso.strftime("%Y-%m-%d") if ot.fecha_ingreso else "",
+            ot.fecha_cierre.strftime("%Y-%m-%d") if ot.fecha_cierre else "",
+            ot.mtti,
+        ])
+
+    # Respuesta HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    filename = f"kpis_OT_{fecha_inicio}_{fecha_fin}.xlsx"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
+
+
+# ====== RANGO DEFAULT DE 30 DÍAS (ÚLTIMOS 30) ======
+def rango_default_30_dias():
+    hoy = date.today()
+    inicio = hoy - timedelta(days=30)
+    return inicio, hoy
+
+
+# ====== QS BASE PARA KPIs: SOLO OTs CERRADAS EN RANGO ======
+def qs_cerradas_en_rango(fecha_inicio, fecha_fin):
+    return OT.objects.filter(
+        estado="cerrado",
+        fecha_cierre__isnull=False,
+        fecha_cierre__range=(fecha_inicio, fecha_fin),
+    )
+
+FAMILIAS_KPI = ["CLOUD", "CIBER", "FIJO", "SDWAN", "UCASS", "VAS"]
+SEGMENTOS_KPI = ["SMALL", "LARGE", "ENTERPRISE", "GOVERNMENT", "WHOLESALE", "MNC"]
+
+
+def kpi_familias(fecha_inicio, fecha_fin):
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(familia__isnull=True).exclude(familia="")
+    data = {fam: {"total": 0, "suma_mtti": 0, "conteo_mtti": 0} for fam in FAMILIAS_KPI}
+
+    for ot in qs:
+        fam = (ot.familia or "").upper()
+        if fam not in data:
+            continue
+        data[fam]["total"] += 1
+        if ot.mtti is not None:
+            data[fam]["suma_mtti"] += ot.mtti
+            data[fam]["conteo_mtti"] += 1
+
+    total_global = sum(v["total"] for v in data.values()) or 1
+
+    resultado = []
+    for fam in FAMILIAS_KPI:
+        info = data[fam]
+        if info["conteo_mtti"] > 0:
+            mtti_prom = round(info["suma_mtti"] / info["conteo_mtti"], 1)
+        else:
+            mtti_prom = 0
+
+        porcentaje = round(100 * info["total"] / total_global, 1) if info["total"] > 0 else 0
+
+        resultado.append({
+            "familia": fam,
+            "total": info["total"],
+            "mtti_promedio": mtti_prom,
+            "porcentaje": porcentaje,
+        })
+
+    return resultado
+
+
+def kpi_segmentos(fecha_inicio, fecha_fin):
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(segmento__isnull=True).exclude(segmento="")
+    data = {seg: {"total": 0, "suma_mtti": 0, "conteo_mtti": 0} for seg in SEGMENTOS_KPI}
+
+    for ot in qs:
+        seg = (ot.segmento or "").upper()
+        if seg not in data:
+            continue
+        data[seg]["total"] += 1
+        if ot.mtti is not None:
+            data[seg]["suma_mtti"] += ot.mtti
+            data[seg]["conteo_mtti"] += 1
+
+    total_global = sum(v["total"] for v in data.values()) or 1
+
+    resultado = []
+    for seg in SEGMENTOS_KPI:
+        info = data[seg]
+        if info["conteo_mtti"] > 0:
+            mtti_prom = round(info["suma_mtti"] / info["conteo_mtti"], 1)
+        else:
+            mtti_prom = 0
+
+        porcentaje = round(100 * info["total"] / total_global, 1) if info["total"] > 0 else 0
+
+        resultado.append({
+            "segmento": seg,
+            "total": info["total"],
+            "mtti_promedio": mtti_prom,
+            "porcentaje": porcentaje,
+        })
+
+    return resultado
+
+
+def kpi_histograma_familias(fecha_inicio, fecha_fin):
+    """
+    Devuelve por familia:
+    - rangos: 0-8 / 9-16 / 17-20 / >20
+    - y además bins/valores para Plotly
+    """
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(familia__isnull=True).exclude(familia="")
+    # Solo mtti definidos
+    qs = qs.exclude(mtti__isnull=True)
+
+    # Inicializar contadores
+    data = {
+        fam: {
+            "rango_0_8": 0,
+            "rango_9_16": 0,
+            "rango_17_20": 0,
+            "rango_mas_20": 0,
+        } for fam in FAMILIAS_KPI
+    }
+
+    for ot in qs:
+        fam = (ot.familia or "").upper()
+        if fam not in data:
+            continue
+
+        d = ot.mtti
+        if d is None:
+            continue
+        if d <= 8:
+            data[fam]["rango_0_8"] += 1
+        elif d <= 16:
+            data[fam]["rango_9_16"] += 1
+        elif d <= 20:
+            data[fam]["rango_17_20"] += 1
+        else:
+            data[fam]["rango_mas_20"] += 1
+
+    resultado = []
+    for fam in FAMILIAS_KPI:
+        info = data[fam]
+        bins = ["0-8", "9-16", "17-20", ">20"]
+        valores = [
+            info["rango_0_8"],
+            info["rango_9_16"],
+            info["rango_17_20"],
+            info["rango_mas_20"],
+        ]
+
+        resultado.append({
+            "familia": fam,
+            "rango_0_8": info["rango_0_8"],
+            "rango_9_16": info["rango_9_16"],
+            "rango_17_20": info["rango_17_20"],
+            "rango_mas_20": info["rango_mas_20"],
+            "bins": bins,
+            "valores": valores,
+        })
+
+    return resultado
+
+
+def kpi_cierres_temporales(fecha_inicio, fecha_fin):
+    """
+    Agrupa las OTs cerradas por mes (YYYY-MM) con total y MTTI promedio.
+    """
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(mtti__isnull=True)
+
+    buckets = {}
+    for ot in qs:
+        periodo = ot.fecha_cierre.strftime("%Y-%m")
+        if periodo not in buckets:
+            buckets[periodo] = {"total": 0, "suma_mtti": 0, "conteo_mtti": 0}
+        buckets[periodo]["total"] += 1
+        buckets[periodo]["suma_mtti"] += ot.mtti
+        buckets[periodo]["conteo_mtti"] += 1
+
+    resultado = []
+    for periodo in sorted(buckets.keys()):
+        info = buckets[periodo]
+        if info["conteo_mtti"] > 0:
+            mtti_prom = round(info["suma_mtti"] / info["conteo_mtti"], 1)
+        else:
+            mtti_prom = 0
+
+        resultado.append({
+            "periodo": periodo,
+            "total": info["total"],
+            "mtti_promedio": mtti_prom,
+        })
+
+    return resultado
+
+
+def kpi_globales(fecha_inicio, fecha_fin):
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(mtti__isnull=True)
+    total = qs.count()
+    if total == 0:
+        mtti_prom = 0
+    else:
+        suma = qs.aggregate(s=Sum("mtti"))["s"] or 0
+        mtti_prom = round(suma / total, 1)
+
+    return {
+        "total_ot_cerradas": total,
+        "mtti_promedio": mtti_prom,
+    }
+
+
+def kpi_segmentos_comercial_detallado(fecha_inicio, fecha_fin):
+    """
+    Para la gráfica tipo PDF:
+    Para cada segmento (MNC, GOV, ENTERPRISE, LARGE, SMALL, WHOLESALE)
+    arma:
+        - familias: ["CIBER","CLOUD",...]
+        - sr: [conteos]
+        - mtti: [promedio mtti]
+    """
+    qs = qs_cerradas_en_rango(fecha_inicio, fecha_fin).exclude(mtti__isnull=True)
+
+    resultado = []
+
+    for seg in SEGMENTOS_KPI:
+        fam_labels = []
+        sr_counts = []
+        mtti_vals = []
+
+        for fam in FAMILIAS_KPI:
+            ots_sf = [
+                ot for ot in qs
+                if (ot.segmento or "").upper() == seg
+                and (ot.familia or "").upper() == fam
+            ]
+            total = len(ots_sf)
+            if total == 0:
+                continue
+
+            suma_mtti = sum(ot.mtti for ot in ots_sf if ot.mtti is not None)
+            if total > 0:
+                mtti_prom = round(suma_mtti / total, 1)
+            else:
+                mtti_prom = 0
+
+            fam_labels.append(fam)
+            sr_counts.append(total)
+            mtti_vals.append(mtti_prom)
+
+        if fam_labels:
+            resultado.append({
+                "segmento": seg,
+                "familias": fam_labels,
+                "sr": sr_counts,
+                "mtti": mtti_vals,
+            })
+
+    return resultado

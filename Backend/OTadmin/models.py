@@ -1,5 +1,7 @@
 from django.db import models
 from accounts.models import CustomUser
+import unicodedata
+import re
 
 class OT(models.Model):
     ESTADOS = (
@@ -23,6 +25,10 @@ class OT(models.Model):
     comercial = models.CharField(max_length=200)
     estado = models.CharField(max_length=20, choices=ESTADOS, default="abierto")
     fecha_cierre = models.DateField(blank=True, null=True)
+    familia = models.CharField(max_length=100, blank=True, null=True)
+    cliente_normalizado = models.CharField(max_length=200, blank=True, null=True)
+    mtti = models.IntegerField(null=True, blank=True)
+    dias_cola_hoy = models.IntegerField(null=True, blank=True)
 
     # días de cola no se guarda, se calcula
     def dias_cola(self):
@@ -63,3 +69,30 @@ class Comentario(models.Model):
     def __str__(self):
         return f"Comentario en OT {self.ot.ot} por {self.usuario}"
 
+class SegmentoCliente(models.Model):
+    cliente = models.CharField(max_length=200, unique=True)
+    cliente_normalizado = models.CharField(max_length=200, unique=True)
+    segmento = models.CharField(max_length=200)
+
+    def __str__(self):
+        return f"{self.cliente} → {self.segmento}"
+
+
+def normalizar_texto(txt):
+    if not txt:
+        return ""
+    txt = str(txt).lower().strip()
+    
+    # quitar acentos
+    txt = ''.join(
+        c for c in unicodedata.normalize('NFD', txt)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+    # quitar caracteres raros
+    txt = re.sub(r'[^a-z0-9 ]', '', txt)
+
+    # quitar dobles espacios
+    txt = re.sub(r'\s+', ' ', txt)
+    
+    return txt

@@ -1,0 +1,99 @@
+/* Fondo general */
+body {
+    background: #f5f7fb;
+}
+
+/* Separación de contenido de cada tab */
+.tab-pane {
+    margin-top: 20px;
+}
+
+/* Botón Regresar flotante */
+.btn-regresar {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;   border-radius: 50px;
+    padding: 10px 18px;
+}
+
+/* ============ KPI CARDS POR FAMILIA ============ */
+
+.kpi-card-familia {
+    border-radius: 14px;
+    padding: 10px 14px;
+    color: #ffffff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+    font-size: 13px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.kpi-card-label {
+    font-size: 11px;
+    opacity: 0.85;
+}
+
+.kpi-card-valor {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.kpi-card-mtti {
+    font-size: 12px;
+    margin-top: -2px;
+}
+
+/* Colores corporativos */
+.kpi-cloud   { background: #004c97; }  /* azul fuerte */
+.kpi-ciber   { background: #00a6e0; }  /* celeste */
+.kpi-fijo    { background: #00b050; }  /* verde */
+.kpi-sdwan   { background: #c00000; }  /* rojo */
+.kpi-ucass   { background: #7030a0; }  /* morado */
+.kpi-vas     { background: #63666a; }  /* gris */
+
+/* ============ HISTOGRAMAS MTTI (Plotly) ============ */
+
+.hist-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.hist-box {
+    border: 1px solid #dde2ea;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 8px 8px 4px 8px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.hist-title {
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+/* ============ GRÁFICAS POR SEGMENTO (Plotly) ============ */
+
+.segment-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.segment-box {
+    border: 1px solid #dde2ea;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 8px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.segment-title {
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 4px;
+}

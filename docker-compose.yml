@@ -2,10 +2,11 @@ version: '3.8'
 
 services:
   web:
-    build: .
+    build: ./backend
     container_name: django_app
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app
+      - ./Backend:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -17,7 +18,7 @@ services:
 
   db:
     image: postgres:14
-    container_name: postgres_db
+    container_name: postgres_db_OT
     environment:
       POSTGRES_DB: ot_db
       POSTGRES_USER: ot_user
@@ -29,7 +30,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4
-    container_name: pgadmin
+    container_name: pgadmin_OT
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin

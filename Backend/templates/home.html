@@ -1,58 +1,104 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Home</title>
+    <title>Inicio | Sistema de OT</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+
+    <!-- Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 
-<body class="bg-light">
+<body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <span class="navbar-brand">Sistema de OT</span>
-
-            <div class="d-flex text-white">
-                <span class="me-3">{{ user.nombre }} {{ user.apellido }} ({{ user.rol }})</span>
-                <a href="{% url 'logout' %}" class="btn btn-sm btn-light">Cerrar sesión</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-5">
-
-        <h2 class="mb-4">Menú principal</h2>
-
-        <div class="row">
-
-            <!-- Subir Backlog (Admin + Ing) -->
-            {% if user.rol == 'admin' or user.rol == 'ing' %}
-            <div class="col-md-4 mb-3">
-                <a href="/subir-backlog/" class="btn btn-primary w-100 p-3">Subir Backlog</a>
-            </div>
-            {% endif %}
-
-            <!-- Ver SR -->
-            <div class="col-md-4 mb-3">
-                <a href="/ver-sr/" class="btn btn-secondary w-100 p-3">Ver SR</a>
-            </div>
-
-            <!-- Gráficas (Admin + Ing) -->
-            {% if user.rol != 'cliente' %}
-            <div class="col-md-4 mb-3">
-                <a href="/graficas/" class="btn btn-info w-100 p-3">Gráficas de rendimiento</a>
-            </div>
-            {% endif %}
-
-            <!-- Agregar usuario (solo Admin) -->
-            {% if user.rol == 'admin' %}
-            <div class="col-md-4 mb-3">
-                <a href="/agregar-usuario/" class="btn btn-success w-100 p-3">Agregar usuario</a>
-            </div>
-            {% endif %}
-
-        </div>
+<!-- TOP BAR -->
+<div class="topbar">
+    <h5>Sistema de OT</h5>
+    <div class="user">
+        {{ request.user.nombre }} {{ request.user.apellido }} ({{ request.user.rol }})
+        <a href="{% url 'logout' %}" class="btn btn-light btn-sm ms-3">Cerrar sesión</a>
     </div>
+</div>
+
+<div class="container mt-5">
+
+    <h2 class="mb-4">Panel principal</h2>
+
+    <div class="row g-4">
+
+        <!-- SUBIR BACKLOG -->
+        <div class="col-md-4">
+            <a href="{% url 'subir_backlog' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-upload fs-1 text-primary"></i>
+                    <h5 class="mt-3">Subir Backlog</h5>
+                    <p class="text-muted">Carga masiva de OTs desde Excel</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- VER SR -->
+        <div class="col-md-4">
+            <a href="{% url 'ver_sr' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-list-task fs-1 text-secondary"></i>
+                    <h5 class="mt-3">Ver SR</h5>
+                    <p class="text-muted">Listado y seguimiento de órdenes</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- GRAFICAS -->
+        <div class="col-md-4">
+            <a href="{% url 'graficas' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-bar-chart-line fs-1 text-info"></i>
+                    <h5 class="mt-3">Gráficas de rendimiento</h5>
+                    <p class="text-muted">KPIs, MTTI y análisis</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- AGREGAR USUARIO -->
+        {% if request.user.rol == "admin" %}
+        <div class="col-md-4">
+            <a href="{% url 'agregar_usuario' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-person-plus fs-1 text-success"></i>
+                    <h5 class="mt-3">Agregar usuario</h5>
+                    <p class="text-muted">Gestión de usuarios del sistema</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- SUBIR SEGMENTO -->
+        <div class="col-md-4">
+            <a href="{% url 'subir_segmento' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-diagram-3 fs-1 text-warning"></i>
+                    <h5 class="mt-3">Subir segmentación</h5>
+                    <p class="text-muted">Asignación cliente → segmento</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- VER CLIENTES -->
+        <div class="col-md-4">
+            <a href="{% url 'ver_clientes' %}" class="text-decoration-none">
+                <div class="card-section text-center">
+                    <i class="bi bi-people fs-1 text-primary"></i>
+                    <h5 class="mt-3">Ver clientes</h5>
+                    <p class="text-muted">Listado y segmentación</p>
+                </div>
+            </a>
+        </div>
+
+    </div>
+</div>
 
 </body>
 </html>

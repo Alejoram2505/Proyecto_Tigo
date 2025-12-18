@@ -29,7 +29,8 @@
         <select name="estado" class="form-control">
             <option value="">Estado</option>
             <option {% if estado == "abierto" %}selected{% endif %}>abierto</option>
-            <option {% if estado == "en proceso" %}selected{% endif %}>en proceso</option>
+            <option {% if estado == "cancelado" %}selected{% endif %}>cancelado</option>
+            <option {% if estado == "pospuesto" %}selected{% endif %}>pospuesto</option>
             <option {% if estado == "cerrado" %}selected{% endif %}>cerrado</option>
         </select>
     </div>

@@ -1,0 +1,85 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Subir segmentación</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+</head>
+
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+    <h5>Sistema de OT</h5>
+    <div class="user">
+        {{ request.user }} |
+        <a href="/logout/" class="text-white text-decoration-none ms-2">Cerrar sesión</a>
+    </div>
+</div>
+
+<!-- CONTENIDO -->
+<div class="container-fluid px-5 mt-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Subir segmentación de clientes</h2>
+            <p class="text-muted mb-0">
+                Actualiza el segmento comercial de clientes existentes desde Excel
+            </p>
+        </div>
+
+        <a href="/" class="btn btn-outline-secondary">
+            ← Regresar
+        </a>
+    </div>
+
+    <!-- CARD CENTRAL (MISMO ESTILO QUE BACKLOG) -->
+    <div class="centered-container">
+        <div class="card p-4">
+
+            <div class="d-flex align-items-center mb-3">
+                <div class="me-3">
+                    📊
+                </div>
+                <div>
+                    <h5 class="mb-0">Archivo de segmentación</h5>
+                    <small class="text-muted">
+                        Formato Excel (.xlsx)
+                    </small>
+                </div>
+            </div>
+
+            <p class="text-muted">
+                El sistema sincronizará automáticamente las SR existentes
+                comparando el nombre del cliente.
+            </p>
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">Archivo Excel</label>
+                    <input type="file" name="archivo" class="form-control" required>
+                    <small class="text-muted">
+                        Columnas esperadas: <strong>NOMBRE_CLIENTE</strong>, <strong>SEGMENTO</strong>
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 mt-3">
+                    Subir y sincronizar
+                </button>
+            </form>
+
+            <p class="text-muted mt-3 mb-0 small">
+                Tip: si el archivo es grande, el proceso puede tardar unos segundos.
+            </p>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
